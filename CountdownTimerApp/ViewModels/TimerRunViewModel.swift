@@ -3,6 +3,7 @@ import Combine
 import Observation
 
 @Observable
+@MainActor
 final class TimerRunViewModel {
     private(set) var remainingSeconds: Int
     private(set) var isRunning = false

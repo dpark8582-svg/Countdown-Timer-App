@@ -10,13 +10,16 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            ZStack {
                 if timers.isEmpty {
                     emptyState
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
                     timerList
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
             }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: timers.isEmpty)
             .navigationTitle("Timers")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -31,9 +34,12 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingNewTimer) {
             NewTimerView()
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(24)
         }
         .sheet(item: $activeTimer) { timer in
             TimerRunView(savedTimer: timer)
+                .presentationDragIndicator(.hidden)
         }
     }
 
@@ -42,12 +48,12 @@ struct HomeView: View {
     private var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "timer")
-                .font(.system(size: 60, weight: .thin))
+                .font(.system(size: 56, weight: .thin))
                 .foregroundStyle(.secondary)
             Text("No Timers")
                 .font(.title2)
                 .fontWeight(.semibold)
-            Text("Tap  +  to create your first timer.")
+            Text("Tap + to create your first timer.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -61,7 +67,11 @@ struct HomeView: View {
             ForEach(timers) { timer in
                 TimerRowView(timer: timer)
                     .contentShape(Rectangle())
-                    .onTapGesture { activeTimer = timer }
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            activeTimer = timer
+                        }
+                    }
             }
             .onDelete(perform: deleteTimers)
         }
@@ -69,8 +79,10 @@ struct HomeView: View {
     }
 
     private func deleteTimers(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(timers[index])
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            for index in offsets {
+                modelContext.delete(timers[index])
+            }
         }
     }
 }
@@ -86,7 +98,6 @@ private struct TimerRowView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // Theme color swatch
             Circle()
                 .fill(theme.background)
                 .frame(width: 46, height: 46)

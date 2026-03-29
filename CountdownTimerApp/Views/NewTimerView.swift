@@ -62,8 +62,10 @@ struct NewTimerView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
                         .disabled(totalSeconds == 0)
+                        .fontWeight(.semibold)
                 }
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: totalSeconds == 0)
         }
     }
 
