@@ -80,3 +80,10 @@ struct NewTimerView: View {
         dismiss()
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    NewTimerView()
+        .modelContainer(for: SavedTimer.self, inMemory: true)
+}

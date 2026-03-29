@@ -206,3 +206,25 @@ private struct SpringButtonStyle: ButtonStyle {
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
+
+// MARK: - Previews
+
+private func previewTimer(label: String, duration: Int, themeID: String) -> SavedTimer {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: SavedTimer.self, configurations: config)
+    let timer = SavedTimer(label: label, durationSeconds: duration, themeID: themeID)
+    container.mainContext.insert(timer)
+    return timer
+}
+
+#Preview("Minimal — Running") {
+    TimerRunView(savedTimer: previewTimer(label: "Focus Session", duration: 1500, themeID: "minimal"))
+}
+
+#Preview("Midnight — Running") {
+    TimerRunView(savedTimer: previewTimer(label: "Deep Work", duration: 2700, themeID: "midnight"))
+}
+
+#Preview("Paper") {
+    TimerRunView(savedTimer: previewTimer(label: "Coffee Break", duration: 300, themeID: "paper"))
+}

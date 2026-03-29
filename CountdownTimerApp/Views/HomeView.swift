@@ -125,3 +125,24 @@ private struct TimerRowView: View {
         .padding(.vertical, 6)
     }
 }
+
+// MARK: - Previews
+
+#Preview("Empty") {
+    HomeView()
+        .modelContainer(for: SavedTimer.self, inMemory: true)
+}
+
+#Preview("With Timers") {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: SavedTimer.self, configurations: config)
+    let samples: [(String, Int, String)] = [
+        ("Focus Session", 1500, "midnight"),
+        ("Coffee Break",   300, "paper"),
+        ("Workout",       2700, "minimal"),
+    ]
+    for (label, duration, theme) in samples {
+        container.mainContext.insert(SavedTimer(label: label, durationSeconds: duration, themeID: theme))
+    }
+    return HomeView().modelContainer(container)
+}

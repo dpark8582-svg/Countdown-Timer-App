@@ -62,3 +62,16 @@ struct ThemeCardView: View {
         .animation(.easeInOut(duration: 0.15), value: isSelected)
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    struct Wrapper: View {
+        @State private var selectedID = FreeThemes.minimal.id
+        var body: some View {
+            ThemePickerView(selectedThemeID: $selectedID)
+                .padding()
+        }
+    }
+    return Wrapper()
+}
