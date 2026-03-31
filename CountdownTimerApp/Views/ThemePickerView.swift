@@ -1,21 +1,34 @@
 import SwiftUI
 
-struct ThemePickerView: View {
+// MARK: - Theme Picker Sheet (bottom sheet shown from palette button)
+
+struct ThemePickerSheet: View {
     @Binding var selectedThemeID: String
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(ThemeLibrary.all) { theme in
-                    ThemeCardView(theme: theme, isSelected: selectedThemeID == theme.id)
-                        .onTapGesture {
-                            guard !theme.isPremium else { return }
-                            selectedThemeID = theme.id
-                        }
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Background")
+                .font(.headline)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(ThemeLibrary.all) { theme in
+                        ThemeCardView(theme: theme, isSelected: selectedThemeID == theme.id)
+                            .onTapGesture {
+                                guard !theme.isPremium else { return }
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    selectedThemeID = theme.id
+                                }
+                                dismiss()
+                            }
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 8)
         }
     }
 }
@@ -68,10 +81,7 @@ struct ThemeCardView: View {
 #Preview {
     struct Wrapper: View {
         @State private var selectedID = FreeThemes.minimal.id
-        var body: some View {
-            ThemePickerView(selectedThemeID: $selectedID)
-                .padding()
-        }
+        var body: some View { ThemePickerSheet(selectedThemeID: $selectedID) }
     }
     return Wrapper()
 }

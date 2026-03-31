@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 @main
 struct CountdownTimerApp: App {
@@ -7,6 +6,5 @@ struct CountdownTimerApp: App {
         WindowGroup {
             HomeView()
         }
-        .modelContainer(for: SavedTimer.self)
     }
 }
