@@ -9,9 +9,12 @@ enum FreeThemes {
         primaryTextColor: Color(white: 0.1),
         labelColor: Color(white: 0.45),
         accentColor: Color(white: 0.05),
+        breathingColors: nil,
+        breathingDuration: 0,
         fontStyle: .sansSerif,
         fontWeight: .thin,
-        pulseOnTick: false
+        pulseOnTick: false,
+        hapticStyle: .none
     )
 
     static let midnight = TimerTheme(
@@ -25,9 +28,15 @@ enum FreeThemes {
         primaryTextColor: .white,
         labelColor: Color(white: 0.55),
         accentColor: Color(red: 0.38, green: 0.58, blue: 1.0),
+        breathingColors: [
+            Color(red: 0.10, green: 0.10, blue: 0.28),
+            Color(red: 0.06, green: 0.06, blue: 0.18)
+        ],
+        breathingDuration: 10,
         fontStyle: .monospaced,
         fontWeight: .light,
-        pulseOnTick: true
+        pulseOnTick: true,
+        hapticStyle: .rigid
     )
 
     static let paper = TimerTheme(
@@ -41,9 +50,15 @@ enum FreeThemes {
         primaryTextColor: Color(red: 0.18, green: 0.13, blue: 0.08),
         labelColor: Color(red: 0.42, green: 0.33, blue: 0.22),
         accentColor: Color(red: 0.52, green: 0.28, blue: 0.08),
+        breathingColors: [
+            Color(red: 0.98, green: 0.96, blue: 0.92),
+            Color(red: 0.94, green: 0.91, blue: 0.85)
+        ],
+        breathingDuration: 14,
         fontStyle: .serif,
         fontWeight: .regular,
-        pulseOnTick: false
+        pulseOnTick: false,
+        hapticStyle: .soft
     )
 
     static let all: [TimerTheme] = [minimal, midnight, paper]

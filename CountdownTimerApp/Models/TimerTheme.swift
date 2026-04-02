@@ -15,6 +15,12 @@ enum ThemeFontStyle: String, Hashable {
     }
 }
 
+// MARK: - Haptic Style
+
+enum HapticStyle: Hashable {
+    case none, soft, medium, rigid
+}
+
 // MARK: - Theme
 
 struct TimerTheme: Identifiable, Hashable {
@@ -28,16 +34,30 @@ struct TimerTheme: Identifiable, Hashable {
     let labelColor: Color
     let accentColor: Color
 
+    // Breathing animation (breathingDuration == 0 means no animation)
+    let breathingColors: [Color]?
+    let breathingDuration: Double
+
     // Typography
     let fontStyle: ThemeFontStyle
     let fontWeight: Font.Weight
 
     // Behavior
     let pulseOnTick: Bool
+    let hapticStyle: HapticStyle
 
     var background: LinearGradient {
         LinearGradient(
             colors: backgroundColors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    var breathingGradient: LinearGradient? {
+        guard let colors = breathingColors else { return nil }
+        return LinearGradient(
+            colors: colors,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

@@ -5,8 +5,18 @@ struct HomeView: View {
     @AppStorage("savedDurationSeconds") private var savedDurationSeconds = 300
 
     @State private var viewModel: TimerRunViewModel
+
     @State private var showingTimeSetter = false
     @State private var showingThemePicker = false
+
+    // Vanishing UI
+    @State private var controlsVisible = true
+    @State private var vanishTask: Task<Void, Never>?
+
+    // Breathing gradient
+    @State private var breathingPhase = false
+
+    // Visual pulse
     @State private var pulse = false
 
     @Environment(\.scenePhase) private var scenePhase
@@ -23,15 +33,22 @@ struct HomeView: View {
     var body: some View {
         ZStack {
 
-            // ── Full-screen background ──────────────────────────────────
+            // ── Base background ─────────────────────────────────────────
             theme.background
                 .ignoresSafeArea()
+
+            // ── Breathing overlay ───────────────────────────────────────
+            if let breathingGradient = theme.breathingGradient {
+                breathingGradient
+                    .ignoresSafeArea()
+                    .opacity(breathingPhase ? 0.65 : 0)
+            }
 
             // ── Timer content ───────────────────────────────────────────
             VStack(spacing: 0) {
                 Spacer()
 
-                // Tap the time to set a new duration (only when stopped)
+                // Time display — tap to set when controls are visible & timer stopped
                 Button {
                     guard !viewModel.isRunning else { return }
                     showingTimeSetter = true
@@ -44,16 +61,19 @@ struct HomeView: View {
                         .animation(.default, value: viewModel.formattedTime)
                 }
                 .buttonStyle(.plain)
+                .allowsHitTesting(controlsVisible)
 
                 Spacer().frame(height: 72)
 
-                // Controls
+                // Controls — fade out when timer is running
                 HStack(spacing: 56) {
 
                     // Reset
                     Button {
                         viewModel.reset()
                         NotificationService.cancelCompletion()
+                        cancelVanish()
+                        stopBreathing()
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 22, weight: .medium))
@@ -74,6 +94,8 @@ struct HomeView: View {
                     .buttonStyle(SpringButtonStyle())
                     .disabled(viewModel.isFinished)
                 }
+                .opacity(controlsVisible ? 1 : 0)
+                .allowsHitTesting(controlsVisible)
 
                 Spacer()
             }
@@ -102,9 +124,23 @@ struct HomeView: View {
                 }
                 Spacer()
             }
+            .opacity(controlsVisible ? 1 : 0)
+            .allowsHitTesting(controlsVisible)
+        }
+        // Tap anywhere to restore vanished controls
+        .onTapGesture {
+            guard !controlsVisible else { return }
+            withAnimation(.easeIn(duration: 0.3)) { controlsVisible = true }
+            if viewModel.isRunning { scheduleVanish() }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.78), value: viewModel.isFinished)
         .onChange(of: viewModel.remainingSeconds) { _, _ in triggerPulse() }
+        .onChange(of: viewModel.isFinished) { _, isFinished in
+            if isFinished {
+                cancelVanish()
+                stopBreathing()
+            }
+        }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background: viewModel.handleBackground()
@@ -113,7 +149,6 @@ struct HomeView: View {
             }
         }
         .task { await NotificationService.requestAuthorization() }
-        // Sheet — set duration
         .sheet(isPresented: $showingTimeSetter) {
             TimeSetterSheet(currentSeconds: savedDurationSeconds) { newSeconds in
                 savedDurationSeconds = newSeconds
@@ -124,7 +159,6 @@ struct HomeView: View {
             .presentationCornerRadius(28)
             .presentationBackground(.thinMaterial)
         }
-        // Sheet — pick theme/background
         .sheet(isPresented: $showingThemePicker) {
             ThemePickerSheet(selectedThemeID: $selectedThemeID)
                 .presentationDetents([.height(210)])
@@ -162,20 +196,64 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Timer control
 
     private func toggleTimer() {
         if viewModel.isRunning {
             viewModel.pause()
             NotificationService.cancelCompletion()
+            cancelVanish()
+            stopBreathing()
         } else {
             viewModel.start()
             NotificationService.scheduleCompletion(timerLabel: "Timer", inSeconds: viewModel.remainingSeconds)
+            scheduleVanish()
+            startBreathing()
         }
     }
 
+    // MARK: - Vanishing UI
+
+    private func scheduleVanish() {
+        vanishTask?.cancel()
+        vanishTask = Task {
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.8)) { controlsVisible = false }
+        }
+    }
+
+    private func cancelVanish() {
+        vanishTask?.cancel()
+        vanishTask = nil
+        withAnimation(.easeIn(duration: 0.3)) { controlsVisible = true }
+    }
+
+    // MARK: - Breathing gradient
+
+    private func startBreathing() {
+        guard theme.breathingDuration > 0 else { return }
+        withAnimation(.easeInOut(duration: theme.breathingDuration).repeatForever(autoreverses: true)) {
+            breathingPhase = true
+        }
+    }
+
+    private func stopBreathing() {
+        withAnimation(.easeOut(duration: 1.5)) {
+            breathingPhase = false
+        }
+    }
+
+    // MARK: - Pulse + haptics
+
     private func triggerPulse() {
-        guard theme.pulseOnTick, viewModel.isRunning else { return }
+        guard viewModel.isRunning else { return }
+
+        // Per-theme haptic on every tick
+        HapticsService.tick(style: theme.hapticStyle)
+
+        // Visual pulse for themes that opt in
+        guard theme.pulseOnTick else { return }
         withAnimation(.easeIn(duration: 0.08))  { pulse = true }
         withAnimation(.easeOut(duration: 0.12).delay(0.08)) { pulse = false }
     }
