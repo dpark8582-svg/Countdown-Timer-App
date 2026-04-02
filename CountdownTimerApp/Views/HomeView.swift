@@ -1,148 +1,314 @@
 import SwiftUI
-import SwiftData
 
 struct HomeView: View {
-    @Query(sort: \SavedTimer.createdAt, order: .reverse) private var timers: [SavedTimer]
-    @Environment(\.modelContext) private var modelContext
+    @AppStorage("selectedThemeID") private var selectedThemeID = FreeThemes.minimal.id
+    @AppStorage("savedDurationSeconds") private var savedDurationSeconds = 300
 
-    @State private var showingNewTimer = false
-    @State private var activeTimer: SavedTimer?
+    @State private var viewModel: TimerRunViewModel
+
+    @State private var showingTimeSetter = false
+    @State private var showingThemePicker = false
+
+    // Vanishing UI
+    @State private var controlsVisible = true
+    @State private var vanishTask: Task<Void, Never>?
+
+    // Breathing gradient
+    @State private var breathingPhase = false
+
+    // Visual pulse
+    @State private var pulse = false
+
+    // Touch interaction
+    @State private var touchLocation: CGPoint? = nil
+    @State private var isTouching = false
+
+    @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let saved = UserDefaults.standard.integer(forKey: "savedDurationSeconds")
+        _viewModel = State(wrappedValue: TimerRunViewModel(durationSeconds: saved > 0 ? saved : 300))
+    }
+
+    private var theme: TimerTheme {
+        ThemeLibrary.theme(for: selectedThemeID)
+    }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                if timers.isEmpty {
-                    emptyState
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                } else {
-                    timerList
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                }
+        ZStack {
+
+            // ── Base background ─────────────────────────────────────────
+            theme.background
+                .ignoresSafeArea()
+
+            // ── Breathing overlay ───────────────────────────────────────
+            if let breathingGradient = theme.breathingGradient {
+                breathingGradient
+                    .ignoresSafeArea()
+                    .opacity(breathingPhase ? 0.65 : 0)
             }
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: timers.isEmpty)
-            .navigationTitle("Timers")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+
+            // ── Interactive Touch Overlay ───────────────────────────────
+            if let interactiveColors = theme.interactiveColors, isTouching, let loc = touchLocation {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: interactiveColors + [interactiveColors.last?.opacity(0) ?? .clear],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 200
+                        )
+                    )
+                    .frame(width: 400, height: 400)
+                    .position(loc)
+                    .allowsHitTesting(false)
+                    .blendMode(.screen)
+            }
+
+            // ── Timer content ───────────────────────────────────────────
+            VStack(spacing: 0) {
+                Spacer()
+
+                // Time display — tap to set when controls are visible & timer stopped
+                Button {
+                    guard !viewModel.isRunning else { return }
+                    showingTimeSetter = true
+                } label: {
+                    Text(viewModel.formattedTime)
+                        .font(theme.timerFont(size: 130))
+                        .foregroundStyle(theme.primaryTextColor)
+                        .scaleEffect(pulse ? 1.08 : 1.0)
+                        .contentTransition(.numericText(countsDown: true))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: viewModel.formattedTime)
+                        .shadow(color: theme.primaryTextColor.opacity(0.3), radius: pulse ? 15 : 0, x: 0, y: 0)
+                }
+                .buttonStyle(.plain)
+                .allowsHitTesting(controlsVisible)
+
+                Spacer().frame(height: 72)
+
+                // Controls — fade out when timer is running
+                HStack(spacing: 56) {
+
+                    // Reset
                     Button {
-                        showingNewTimer = true
+                        viewModel.reset()
+                        NotificationService.cancelCompletion()
+                        cancelVanish()
+                        stopBreathing()
                     } label: {
-                        Image(systemName: "plus")
-                            .fontWeight(.semibold)
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundStyle(theme.labelColor)
+                            .frame(width: 56, height: 56)
+                            .background(theme.labelColor.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(SpringButtonStyle())
+
+                    // Play / Pause
+                    Button { toggleTimer() } label: {
+                        Image(systemName: viewModel.isRunning ? "pause.fill" : "play.fill")
+                            .font(.system(size: 32, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(width: 76, height: 76)
+                            .background(theme.accentColor, in: Circle())
+                    }
+                    .buttonStyle(SpringButtonStyle())
+                    .disabled(viewModel.isFinished)
+                }
+                .opacity(controlsVisible ? 1 : 0)
+                .allowsHitTesting(controlsVisible)
+
+                Spacer()
+            }
+            .padding(.horizontal, 40)
+
+            // ── Completion overlay ──────────────────────────────────────
+            if viewModel.isFinished {
+                completionOverlay
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            // ── Floating palette button (top-right) ────────────────────
+            VStack {
+                HStack {
+                    Spacer()
+                    Button { showingThemePicker = true } label: {
+                        Image(systemName: "paintpalette.fill")
+                            .font(.system(size: 17))
+                            .foregroundStyle(theme.labelColor)
+                            .frame(width: 44, height: 44)
+                            .background(theme.labelColor.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(SpringButtonStyle())
+                    .padding(.trailing, 24)
+                    .padding(.top, 60)
+                }
+                Spacer()
+            }
+            .opacity(controlsVisible ? 1 : 0)
+            .allowsHitTesting(controlsVisible)
+        }
+        // Tap anywhere to restore vanished controls
+        .onTapGesture {
+            guard !controlsVisible else { return }
+            withAnimation(.easeIn(duration: 0.3)) { controlsVisible = true }
+            if viewModel.isRunning { scheduleVanish() }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    touchLocation = value.location
+                    if !isTouching {
+                        withAnimation(.easeOut(duration: 0.2)) { isTouching = true }
                     }
                 }
-            }
-        }
-        .sheet(isPresented: $showingNewTimer) {
-            NewTimerView()
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(24)
-        }
-        .sheet(item: $activeTimer) { timer in
-            TimerRunView(savedTimer: timer)
-                .presentationDragIndicator(.hidden)
-        }
-    }
-
-    // MARK: - Empty state
-
-    private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "timer")
-                .font(.system(size: 56, weight: .thin))
-                .foregroundStyle(.secondary)
-            Text("No Timers")
-                .font(.title2)
-                .fontWeight(.semibold)
-            Text("Tap + to create your first timer.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Timer list
-
-    private var timerList: some View {
-        List {
-            ForEach(timers) { timer in
-                TimerRowView(timer: timer)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            activeTimer = timer
-                        }
+                .onEnded { _ in
+                    withAnimation(.easeOut(duration: 0.5)) { 
+                        isTouching = false 
                     }
+                }
+        )
+        .animation(.spring(response: 0.45, dampingFraction: 0.78), value: viewModel.isFinished)
+        .onChange(of: viewModel.remainingSeconds) { _, _ in triggerPulse() }
+        .onChange(of: viewModel.isFinished) { _, isFinished in
+            if isFinished {
+                cancelVanish()
+                stopBreathing()
             }
-            .onDelete(perform: deleteTimers)
         }
-        .listStyle(.insetGrouped)
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background: viewModel.handleBackground()
+            case .active:     viewModel.handleForeground()
+            default:          break
+            }
+        }
+        .task { await NotificationService.requestAuthorization() }
+        .sheet(isPresented: $showingTimeSetter) {
+            TimeSetterSheet(currentSeconds: savedDurationSeconds) { newSeconds in
+                savedDurationSeconds = newSeconds
+                viewModel = TimerRunViewModel(durationSeconds: newSeconds)
+            }
+            .presentationDetents([.height(300)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(28)
+            .presentationBackground(.thinMaterial)
+        }
+        .sheet(isPresented: $showingThemePicker) {
+            ThemePickerSheet(selectedThemeID: $selectedThemeID)
+                .presentationDetents([.height(210)])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(.thinMaterial)
+        }
     }
 
-    private func deleteTimers(at offsets: IndexSet) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            for index in offsets {
-                modelContext.delete(timers[index])
+    // MARK: - Completion overlay
+
+    private var completionOverlay: some View {
+        ZStack {
+            theme.background
+                .opacity(0.92)
+                .ignoresSafeArea()
+
+            VStack(spacing: 28) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundStyle(theme.accentColor)
+
+                Text("Done!")
+                    .font(theme.timerFont(size: 48))
+                    .foregroundStyle(theme.primaryTextColor)
+
+                Button("Restart") { viewModel.reset() }
+                    .font(.system(.body, design: theme.fontStyle.design, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 36)
+                    .padding(.vertical, 14)
+                    .background(theme.accentColor, in: Capsule())
+                    .buttonStyle(SpringButtonStyle())
             }
         }
+    }
+
+    // MARK: - Timer control
+
+    private func toggleTimer() {
+        if viewModel.isRunning {
+            viewModel.pause()
+            NotificationService.cancelCompletion()
+            cancelVanish()
+            stopBreathing()
+        } else {
+            viewModel.start()
+            NotificationService.scheduleCompletion(timerLabel: "Timer", inSeconds: viewModel.remainingSeconds)
+            scheduleVanish()
+            startBreathing()
+        }
+    }
+
+    // MARK: - Vanishing UI
+
+    private func scheduleVanish() {
+        vanishTask?.cancel()
+        vanishTask = Task {
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.8)) { controlsVisible = false }
+        }
+    }
+
+    private func cancelVanish() {
+        vanishTask?.cancel()
+        vanishTask = nil
+        withAnimation(.easeIn(duration: 0.3)) { controlsVisible = true }
+    }
+
+    // MARK: - Breathing gradient
+
+    private func startBreathing() {
+        guard theme.breathingDuration > 0 else { return }
+        withAnimation(.easeInOut(duration: theme.breathingDuration).repeatForever(autoreverses: true)) {
+            breathingPhase = true
+        }
+    }
+
+    private func stopBreathing() {
+        withAnimation(.easeOut(duration: 1.5)) {
+            breathingPhase = false
+        }
+    }
+
+    // MARK: - Pulse + haptics
+
+    private func triggerPulse() {
+        guard viewModel.isRunning else { return }
+
+        // Per-theme haptic on every tick
+        HapticsService.tick(style: theme.hapticStyle)
+
+        // Visual pulse for themes that opt in
+        guard theme.pulseOnTick else { return }
+        withAnimation(.easeIn(duration: 0.08))  { pulse = true }
+        withAnimation(.easeOut(duration: 0.12).delay(0.08)) { pulse = false }
     }
 }
 
-// MARK: - Timer Row
+// MARK: - Spring Button Style
 
-private struct TimerRowView: View {
-    let timer: SavedTimer
-
-    private var theme: TimerTheme {
-        ThemeLibrary.theme(for: timer.themeID)
-    }
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Circle()
-                .fill(theme.background)
-                .frame(width: 46, height: 46)
-                .overlay {
-                    Text(timer.label.prefix(1).uppercased())
-                        .font(.system(.body, design: theme.fontStyle.design, weight: .semibold))
-                        .foregroundStyle(theme.primaryTextColor)
-                }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(timer.label)
-                    .font(.body)
-                    .fontWeight(.medium)
-                Text(timer.formattedDuration)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "play.circle.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(theme.accentColor)
-        }
-        .padding(.vertical, 6)
+private struct SpringButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.5), value: configuration.isPressed)
     }
 }
 
 // MARK: - Previews
 
-#Preview("Empty") {
+#Preview("Minimal") { HomeView() }
+#Preview("Midnight") {
     HomeView()
-        .modelContainer(for: SavedTimer.self, inMemory: true)
-}
-
-#Preview("With Timers") {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: SavedTimer.self, configurations: config)
-    let samples: [(String, Int, String)] = [
-        ("Focus Session", 1500, "midnight"),
-        ("Coffee Break",   300, "paper"),
-        ("Workout",       2700, "minimal"),
-    ]
-    for (label, duration, theme) in samples {
-        container.mainContext.insert(SavedTimer(label: label, durationSeconds: duration, themeID: theme))
-    }
-    return HomeView().modelContainer(container)
+        .onAppear { UserDefaults.standard.set("midnight", forKey: "selectedThemeID") }
 }

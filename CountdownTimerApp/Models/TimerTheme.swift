@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Font Style
 
 enum ThemeFontStyle: String, Hashable {
-    case sansSerif, rounded, monospaced, serif
+    case sansSerif, rounded, monospaced, serif, bubbly
 
     var design: Font.Design {
         switch self {
@@ -11,8 +11,15 @@ enum ThemeFontStyle: String, Hashable {
         case .rounded:    return .rounded
         case .monospaced: return .monospaced
         case .serif:      return .serif
+        case .bubbly:     return .rounded
         }
     }
+}
+
+// MARK: - Haptic Style
+
+enum HapticStyle: Hashable {
+    case none, soft, medium, rigid
 }
 
 // MARK: - Theme
@@ -28,12 +35,20 @@ struct TimerTheme: Identifiable, Hashable {
     let labelColor: Color
     let accentColor: Color
 
+    // Breathing animation (breathingDuration == 0 means no animation)
+    let breathingColors: [Color]?
+    let breathingDuration: Double
+    
+    // Interactive touch animation
+    let interactiveColors: [Color]?
+
     // Typography
     let fontStyle: ThemeFontStyle
     let fontWeight: Font.Weight
 
     // Behavior
     let pulseOnTick: Bool
+    let hapticStyle: HapticStyle
 
     var background: LinearGradient {
         LinearGradient(
@@ -43,8 +58,20 @@ struct TimerTheme: Identifiable, Hashable {
         )
     }
 
+    var breathingGradient: LinearGradient? {
+        guard let colors = breathingColors else { return nil }
+        return LinearGradient(
+            colors: colors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
     func timerFont(size: CGFloat) -> Font {
-        .system(size: size, weight: fontWeight, design: fontStyle.design)
+        if fontStyle == .bubbly {
+            return .custom("ChalkboardSE-Bold", size: size, relativeTo: .largeTitle)
+        }
+        return .system(size: size, weight: fontWeight, design: fontStyle.design)
     }
 }
 
