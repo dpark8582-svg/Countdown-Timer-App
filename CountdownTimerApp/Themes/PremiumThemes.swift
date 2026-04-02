@@ -17,6 +17,10 @@ enum PremiumThemes {
             Color(red: 0.09, green: 0.0, blue: 0.20)
         ],
         breathingDuration: 7,
+        interactiveColors: [
+            Color(red: 0.0, green: 0.8, blue: 1.0),
+            Color(red: 0.6, green: 0.0, blue: 1.0)
+        ],
         fontStyle: .monospaced,
         fontWeight: .medium,
         pulseOnTick: true,
@@ -39,6 +43,7 @@ enum PremiumThemes {
             Color(red: 0.44, green: 0.18, blue: 0.06)
         ],
         breathingDuration: 12,
+        interactiveColors: nil,
         fontStyle: .rounded,
         fontWeight: .regular,
         pulseOnTick: false,
@@ -61,11 +66,41 @@ enum PremiumThemes {
             Color(red: 0.12, green: 0.06, blue: 0.32)
         ],
         breathingDuration: 16,
+        interactiveColors: [
+            Color(red: 0.2, green: 0.1, blue: 0.5),
+            Color(red: 0.4, green: 0.2, blue: 0.8)
+        ],
         fontStyle: .sansSerif,
         fontWeight: .ultraLight,
         pulseOnTick: true,
         hapticStyle: .medium
     )
 
-    static let all: [TimerTheme] = [neonCircuit, warmHearth, cosmos]
+    static let aurora = TimerTheme(
+        id: "aurora",
+        name: "Aurora",
+        isPremium: true,
+        backgroundColors: [
+            Color(red: 0.0, green: 0.2, blue: 0.3),
+            Color(red: 0.0, green: 0.1, blue: 0.2)
+        ],
+        primaryTextColor: Color(red: 0.6, green: 1.0, blue: 0.8),
+        labelColor: Color(red: 0.4, green: 0.8, blue: 0.6),
+        accentColor: Color(red: 0.2, green: 1.0, blue: 0.8),
+        breathingColors: [
+            Color(red: 0.0, green: 0.3, blue: 0.4),
+            Color(red: 0.0, green: 0.2, blue: 0.3)
+        ],
+        breathingDuration: 12,
+        interactiveColors: [
+            Color(red: 0.2, green: 0.9, blue: 0.6),
+            Color(red: 0.1, green: 0.6, blue: 0.8)
+        ],
+        fontStyle: .bubbly,
+        fontWeight: .bold,
+        pulseOnTick: true,
+        hapticStyle: .medium
+    )
+
+    static let all: [TimerTheme] = [neonCircuit, warmHearth, cosmos, aurora]
 }

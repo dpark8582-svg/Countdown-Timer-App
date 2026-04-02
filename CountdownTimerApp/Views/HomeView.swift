@@ -19,6 +19,10 @@ struct HomeView: View {
     // Visual pulse
     @State private var pulse = false
 
+    // Touch interaction
+    @State private var touchLocation: CGPoint? = nil
+    @State private var isTouching = false
+
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -44,6 +48,23 @@ struct HomeView: View {
                     .opacity(breathingPhase ? 0.65 : 0)
             }
 
+            // ── Interactive Touch Overlay ───────────────────────────────
+            if let interactiveColors = theme.interactiveColors, isTouching, let loc = touchLocation {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: interactiveColors + [interactiveColors.last?.opacity(0) ?? .clear],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 200
+                        )
+                    )
+                    .frame(width: 400, height: 400)
+                    .position(loc)
+                    .allowsHitTesting(false)
+                    .blendMode(.screen)
+            }
+
             // ── Timer content ───────────────────────────────────────────
             VStack(spacing: 0) {
                 Spacer()
@@ -54,11 +75,12 @@ struct HomeView: View {
                     showingTimeSetter = true
                 } label: {
                     Text(viewModel.formattedTime)
-                        .font(theme.timerFont(size: 92))
+                        .font(theme.timerFont(size: 130))
                         .foregroundStyle(theme.primaryTextColor)
-                        .scaleEffect(pulse ? 1.03 : 1.0)
+                        .scaleEffect(pulse ? 1.08 : 1.0)
                         .contentTransition(.numericText(countsDown: true))
-                        .animation(.default, value: viewModel.formattedTime)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: viewModel.formattedTime)
+                        .shadow(color: theme.primaryTextColor.opacity(0.3), radius: pulse ? 15 : 0, x: 0, y: 0)
                 }
                 .buttonStyle(.plain)
                 .allowsHitTesting(controlsVisible)
@@ -133,6 +155,20 @@ struct HomeView: View {
             withAnimation(.easeIn(duration: 0.3)) { controlsVisible = true }
             if viewModel.isRunning { scheduleVanish() }
         }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    touchLocation = value.location
+                    if !isTouching {
+                        withAnimation(.easeOut(duration: 0.2)) { isTouching = true }
+                    }
+                }
+                .onEnded { _ in
+                    withAnimation(.easeOut(duration: 0.5)) { 
+                        isTouching = false 
+                    }
+                }
+        )
         .animation(.spring(response: 0.45, dampingFraction: 0.78), value: viewModel.isFinished)
         .onChange(of: viewModel.remainingSeconds) { _, _ in triggerPulse() }
         .onChange(of: viewModel.isFinished) { _, isFinished in
@@ -264,8 +300,8 @@ struct HomeView: View {
 private struct SpringButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.5), value: configuration.isPressed)
     }
 }
 

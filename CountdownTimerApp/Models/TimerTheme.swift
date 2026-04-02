@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Font Style
 
 enum ThemeFontStyle: String, Hashable {
-    case sansSerif, rounded, monospaced, serif
+    case sansSerif, rounded, monospaced, serif, bubbly
 
     var design: Font.Design {
         switch self {
@@ -11,6 +11,7 @@ enum ThemeFontStyle: String, Hashable {
         case .rounded:    return .rounded
         case .monospaced: return .monospaced
         case .serif:      return .serif
+        case .bubbly:     return .rounded
         }
     }
 }
@@ -37,6 +38,9 @@ struct TimerTheme: Identifiable, Hashable {
     // Breathing animation (breathingDuration == 0 means no animation)
     let breathingColors: [Color]?
     let breathingDuration: Double
+    
+    // Interactive touch animation
+    let interactiveColors: [Color]?
 
     // Typography
     let fontStyle: ThemeFontStyle
@@ -64,7 +68,10 @@ struct TimerTheme: Identifiable, Hashable {
     }
 
     func timerFont(size: CGFloat) -> Font {
-        .system(size: size, weight: fontWeight, design: fontStyle.design)
+        if fontStyle == .bubbly {
+            return .custom("ChalkboardSE-Bold", size: size, relativeTo: .largeTitle)
+        }
+        return .system(size: size, weight: fontWeight, design: fontStyle.design)
     }
 }
 
